@@ -1,0 +1,8 @@
+Django>=5.0,<6.0
+djangorestframework
+django-cors-headers
+channels
+python-socketio
+firebase-admin
+mysqlclient
+python-dotenv
