@@ -29,7 +29,9 @@ SECRET_KEY = 'django-insecure-c!q&j77_=iaw&a+$w%soks#07h7m$a5%^#d%lfb04a4th9q*v%
 DEBUG = True
 GLOBAL_IP = '192.168.10.7'
 GLOBAL_HOST = '3000'
-ALLOWED_HOSTS = [ '127.0.0.1',GLOBAL_IP]
+# Allow localhost (same machine / iOS sim), 10.0.2.2 (Android emulator),
+# and the LAN IP for physical-device testing.
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -147,8 +149,8 @@ CHANNEL_LAYERS = {
     }
 }
 
-GDAL_LIBRARY_PATH = os.environ.get('GDAL_LIBRARY_PATH', r'C:\OSGeo4W\bin\gdal313.dll')
-GEOS_LIBRARY_PATH = os.environ.get('GEOS_LIBRARY_PATH', r'C:\OSGeo4W\bin\geos_c.dll')   
+GDAL_LIBRARY_PATH = os.environ.get('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')
+GEOS_LIBRARY_PATH = os.environ.get('GEOS_LIBRARY_PATH', '/opt/homebrew/lib/libgeos_c.dylib')
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
