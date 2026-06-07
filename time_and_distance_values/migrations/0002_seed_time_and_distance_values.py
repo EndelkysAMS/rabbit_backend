@@ -3,7 +3,6 @@ from django.db import migrations
 
 # Tarifa base usada para calcular el valor recomendado del viaje:
 #   recommended_value = km_value * km + min_value * minutos
-# Valores de ejemplo para desarrollo local; ajustar segun el negocio.
 KM_VALUE = 0.5
 MIN_VALUE = 0.2
 

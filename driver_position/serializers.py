@@ -25,7 +25,7 @@ class DriverPositionSerializer(serializers.ModelSerializer):
         
         query = """
             REPLACE INTO drivers_position (id_driver, position)
-            VALUES (%s, ST_GeomFromText('POINT(%s %s)', 4326))
+            VALUES (%s, ST_GeomFromText('POINT(%s %s)', 4326, 'axis-order=long-lat'))
         """
 
         with connection.cursor() as cursor:

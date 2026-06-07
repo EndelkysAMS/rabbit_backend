@@ -1,9 +1,9 @@
-from django.shortcuts import render
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from django.db import connection
+from django.db import connection, transaction
+from datetime import datetime
 from driver_trip_offers.serializers import DriverTripOfferSerializer
 import json
 from django.conf import settings
@@ -61,26 +61,55 @@ def find_by_client_request(request, id_client_request):
 
         results_json = []
         for result in results:
-         result['driver'] = json.loads(result['driver'])
-         result['bike'] = json.loads(result['bike'])
-        
-         if result['driver'].get('image'):
-            result['driver']['image'] = f"http://{settings.GLOBAL_IP}:{settings.GLOBAL_HOST}{result['driver']['image']}"
+            result['driver'] = json.loads(result['driver']) if result['driver'] else {}
+            result['bike'] = json.loads(result['bike']) if result['bike'] else {}
+
+            if result['driver'].get('image'):
+                result['driver']['image'] = f"http://{settings.GLOBAL_IP}:{settings.GLOBAL_HOST}{result['driver']['image']}"
 
             results_json.append(result)
-            return Response(results_json, status=status.HTTP_200_OK)
+
+        return Response(results_json, status=status.HTTP_200_OK)
 
     except Exception as e:
-       return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
    
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create(request):
-    serializer = DriverTripOfferSerializer(data = request.data)
+    serializer = DriverTripOfferSerializer(data=request.data)
     if serializer.is_valid():
         driver_trip_offer = serializer.save()
-        return Response(serializer.data, status = status.HTTP_201_CREATED)
+        event_name = f"created_driver_offer/{driver_trip_offer.id_client_request_id}"
+        payload = {
+            'id_client_request': driver_trip_offer.id_client_request_id,
+            'id_driver': driver_trip_offer.id_driver_id,
+            'id_driver_trip_offer': driver_trip_offer.id,
+        }
+
+        try:
+            from asgiref.sync import async_to_sync
+            from socketio_app.sio import sio, get_connected_clients_count
+            async_to_sync(sio.emit)(event_name, payload)
+            print(
+                f"[{datetime.now().isoformat()}] OFFER_EMIT_OK "
+                f"event='{event_name}' connected_clients={get_connected_clients_count()} payload={payload}"
+            )
+        except Exception as emit_error:
+            print(
+                f"[{datetime.now().isoformat()}] OFFER_EMIT_ERROR "
+                f"event='{event_name}' payload={payload} error={emit_error}"
+            )
+            return Response(
+                {
+                    'message': f'Oferta creada pero falló la emisión realtime: {emit_error}',
+                    'offer': serializer.data,
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
     error_messages = []
     for field, errors in serializer._errors.items():
         for error in errors:

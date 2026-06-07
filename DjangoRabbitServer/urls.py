@@ -15,9 +15,30 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf.urls.static import static
 from django.conf import settings
+from django.http import JsonResponse
+
+
+def json_404_handler(request, exception):
+    return JsonResponse(
+        {
+            "message": f"Endpoint no encontrado: {request.path}",
+            "statusCode": 404,
+        },
+        status=404,
+    )
+
+
+def api_not_found(request, unmatched_path=None):
+    return JsonResponse(
+        {
+            "message": f"Endpoint API no encontrado: {request.path}",
+            "statusCode": 404,
+        },
+        status=404,
+    )
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -28,6 +49,14 @@ urlpatterns = [
     path('driver-trip-offers' , include('driver_trip_offers.urls')),
     path('driver-bike-info' , include('driver_bike_info.urls')),
     path('firebase-notification' , include('firebase_notification.urls')),
+    # Catch unknown API routes with JSON response (even with DEBUG=True)
+    re_path(
+        r'^(users|auth|drivers-position|client-requests|driver-trip-offers|driver-bike-info|firebase-notification)(/.*)?$',
+        api_not_found,
+    ),
 ]
 
 urlpatterns +=  static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Return JSON for unknown API paths so Flutter never receives HTML 404 pages.
+handler404 = 'DjangoRabbitServer.urls.json_404_handler'

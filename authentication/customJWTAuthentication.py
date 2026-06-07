@@ -3,11 +3,20 @@ from rest_framework.exceptions import AuthenticationFailed
 from users.models import User
 
 class CustomJWTAuthentication(JWTAuthentication):
+    def authenticate(self, request):
+        header = request.META.get('HTTP_AUTHORIZATION', '')
+        if header.startswith('Bearer Bearer '):
+            request.META['HTTP_AUTHORIZATION'] = header.replace(
+                'Bearer Bearer ', 'Bearer ', 1
+            )
+        return super().authenticate(request)
+
     def get_user(self, validated_token):
-        try:
-            user_id = validated_token['id']
-        except KeyError:
-            raise  AuthenticationFailed('El token no contiene una identificación de usuario reconocible')
+        user_id = validated_token.get('id') or validated_token.get('user_id')
+        if user_id is None:
+            raise AuthenticationFailed(
+                'El token no contiene una identificación de usuario reconocible'
+            )
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:

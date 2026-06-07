@@ -22,7 +22,7 @@ class ClientRequest(models.Model):
     id_driver_assigned = models.ForeignKey(
         'users.User',
         on_delete=models.SET_NULL,
-        db_column=' id_driver_assigned',
+        db_column='id_driver_assigned',
         null=True,
         related_name='driver_requests'
     )

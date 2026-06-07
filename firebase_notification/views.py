@@ -30,6 +30,8 @@ def send_push_notification(token, title, body, data=None):
     return response
 
 def send_push_notification_to_multiple_device(tokens, title, body, data=None):
+    if not tokens:
+        return None
     message = messaging.MulticastMessage(
         notification=messaging.Notification(
             title=title,

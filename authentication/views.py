@@ -14,9 +14,17 @@ from django.conf import settings
 
 def getCustomTokenForUser(user):
     refresh_token = RefreshToken.for_user(user)
-    del refresh_token.payload['user_id']
-    refresh_token.payload['id'] = user.id
-    refresh_token.payload['name'] = user.name
+    refresh_token['id'] = user.id
+    refresh_token['name'] = user.name
+    if 'user_id' in refresh_token:
+        del refresh_token['user_id']
+
+    access = refresh_token.access_token
+    access['id'] = user.id
+    access['name'] = user.name
+    if 'user_id' in access:
+        del access['user_id']
+
     return refresh_token
 
 

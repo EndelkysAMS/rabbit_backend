@@ -14,7 +14,7 @@ import os
 from pathlib import Path 
 from datetime import timedelta
 from firebase import cred, firebase_admin
-
+import platform
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,7 +27,7 @@ SECRET_KEY = 'django-insecure-c!q&j77_=iaw&a+$w%soks#07h7m$a5%^#d%lfb04a4th9q*v%
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-GLOBAL_IP = '192.168.10.7'
+GLOBAL_IP = '192.168.10.11'
 GLOBAL_HOST = '3000'
 # Allow localhost (same machine / iOS sim), 10.0.2.2 (Android emulator),
 # and the LAN IP for physical-device testing.
@@ -149,8 +149,12 @@ CHANNEL_LAYERS = {
     }
 }
 
-GDAL_LIBRARY_PATH = os.environ.get('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')
-GEOS_LIBRARY_PATH = os.environ.get('GEOS_LIBRARY_PATH', '/opt/homebrew/lib/libgeos_c.dylib')
+if platform.system() == 'Windows':
+    GDAL_LIBRARY_PATH = r'C:\OSGeo4W\bin\gdal313.dll'
+    GEOS_LIBRARY_PATH = r'C:\OSGeo4W\bin\geos_c.dll'
+elif platform.system() == 'Darwin':  # macOS
+    GDAL_LIBRARY_PATH = os.environ.get('GDAL_LIBRARY_PATH', '/opt/homebrew/lib/libgdal.dylib')
+    GEOS_LIBRARY_PATH = os.environ.get('GEOS_LIBRARY_PATH', '/opt/homebrew/lib/libgeos_c.dylib')
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/

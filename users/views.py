@@ -128,7 +128,10 @@ def update(request, id_user):
 @api_view(['PUT'])
 @permission_classes([AllowAny])
 def update_notification_token(request, id_user):
+    return _update_notification_token_by_id(request, id_user)
 
+
+def _update_notification_token_by_id(request, id_user):
     try:
         user = User.objects.get(id=id_user)
     except User.DoesNotExist:
@@ -171,6 +174,21 @@ def update_notification_token(request, id_user):
     }
 
     return Response(user_data, status=status.HTTP_200_OK)
+
+
+@api_view(['PUT'])
+@permission_classes([AllowAny])
+def update_notification_token_without_id(request):
+    id_user = request.data.get('id_user')
+    if id_user is None:
+        return Response(
+            {
+                "message": "id_user es obligatorio",
+                "statusCode": status.HTTP_400_BAD_REQUEST
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    return _update_notification_token_by_id(request, id_user)
 
 
 @api_view(['PUT'])
