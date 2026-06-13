@@ -43,6 +43,7 @@ def api_not_found(request, unmatched_path=None):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('users/' , include('users.urls')),
+    path('admin-linea/' , include('users.admin_linea_urls')),
     path('auth' , include('authentication.urls')),
     path('drivers-position' , include('driver_position.urls')),
     path('client-requests' , include('client_requests.urls')),
@@ -51,7 +52,7 @@ urlpatterns = [
     path('firebase-notification' , include('firebase_notification.urls')),
     # Catch unknown API routes with JSON response (even with DEBUG=True)
     re_path(
-        r'^(users|auth|drivers-position|client-requests|driver-trip-offers|driver-bike-info|firebase-notification)(/.*)?$',
+        r'^(users|admin-linea|auth|drivers-position|client-requests|driver-trip-offers|driver-bike-info|firebase-notification)(/.*)?$',
         api_not_found,
     ),
 ]

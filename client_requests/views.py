@@ -1,6 +1,7 @@
 import requests
 import json
 import math
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,6 +15,8 @@ from firebase_admin import messaging
 from firebase_notification.views import send_push_notification_to_multiple_device
 
 GOOGLE_API_KEY = 'AIzaSyCsYS3XlL5usbYBKduvSEpoMWUDsjx56ds'
+MIN_FARE_USD = Decimal('0.80')
+MONEY_DECIMALS = Decimal('0.01')
 
 
 def _normalize_lat_lng(first, second):
@@ -63,6 +66,37 @@ def _image_url(image_path):
     if str(image_path).startswith('http://') or str(image_path).startswith('https://'):
         return image_path
     return f"http://{settings.GLOBAL_IP}:{settings.GLOBAL_HOST}{image_path}"
+
+
+def _apply_minimum_fare(calculated_fare):
+    """Apply business floor and monetary rounding for fare amounts."""
+    fare_decimal = Decimal(str(calculated_fare))
+    return max(fare_decimal, MIN_FARE_USD).quantize(MONEY_DECIMALS, rounding=ROUND_HALF_UP)
+
+
+def _validate_and_floor_fare_or_400(raw_value, field_name):
+    if raw_value is None:
+        return None, Response(
+            {'message': f'{field_name} es requerido y debe ser un número válido'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        fare = Decimal(str(raw_value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None, Response(
+            {'message': f'{field_name} debe ser un número válido'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if fare <= 0:
+        return None, Response(
+            {'message': f'{field_name} debe ser mayor a 0'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    fare = _apply_minimum_fare(fare)
+    return fare, None
 
 
 @api_view(['POST'])
@@ -273,7 +307,7 @@ def _fetch_assigned_trip(cursor, id_client_request):
 def update_driver_assigned(request):
     id = request.data.get('id')
     id_driver_assigned = request.data.get('id_driver_assigned')
-    fare_assigned = request.data.get('fare_assigned')
+    fare_assigned_raw = request.data.get('fare_assigned')
 
     sql = """
         UPDATE client_requests
@@ -286,6 +320,13 @@ def update_driver_assigned(request):
     """
     id_client = request.data.get('id_client')
     try:
+        fare_assigned_decimal, fare_error = _validate_and_floor_fare_or_400(
+            fare_assigned_raw, 'fare_assigned'
+        )
+        if fare_error:
+            return fare_error
+
+        fare_assigned = float(fare_assigned_decimal)
         with connection.cursor() as cursor:
             cursor.execute(sql, [id_driver_assigned, fare_assigned, id])
 
@@ -772,8 +813,8 @@ def get_by_driver_assigned(request, id_driver):
 def get_time_and_distance_client_request(request, origin_lat, origin_lng, destination_lat, destination_lng):
     try:
         time_and_distance_values = TimeAndDistanceValues.objects.get(id=1)
-        km_value = time_and_distance_values.km_value
-        min_value = time_and_distance_values.min_value
+        km_value = Decimal(str(time_and_distance_values.km_value))
+        min_value = Decimal(str(time_and_distance_values.min_value))
 
         o_lat, o_lng = _normalize_lat_lng(origin_lat, origin_lng)
         d_lat, d_lng = _normalize_lat_lng(destination_lat, destination_lng)
@@ -799,45 +840,50 @@ def get_time_and_distance_client_request(request, origin_lat, origin_lng, destin
             if elements.get('status') != 'OK':
                 raise ValueError(f"Google element status={elements.get('status')}")
 
-            distance_value = elements['distance']['value']
+            distance_value = Decimal(str(elements['distance']['value']))
             distance_text = elements['distance']['text']
-            duration_value = elements['duration']['value']
+            duration_value = Decimal(str(elements['duration']['value']))
             duration_text = elements['duration']['text']
 
-            recommended_value = (km_value * (distance_value / 1000) + min_value * (duration_value / 60))
+            calculated_fare = (
+                km_value * (distance_value / Decimal('1000'))
+                + min_value * (duration_value / Decimal('60'))
+            )
+            recommended_value = _apply_minimum_fare(calculated_fare)
 
             response_data = {
-                'recommended_value': recommended_value,
+                'recommended_value': float(recommended_value),
                 'destination_addresses': data.get('destination_addresses')[0],
                 'origin_addresses': data.get('origin_addresses')[0],
                 'distance': {
                     'text': distance_text,
-                    'value': (distance_value / 1000)
+                    'value': float((distance_value / Decimal('1000')).quantize(MONEY_DECIMALS, rounding=ROUND_HALF_UP))
                 },
                 'duration': {
                     'text': duration_text,
-                    'value': (duration_value / 60)
+                    'value': float((duration_value / Decimal('60')).quantize(MONEY_DECIMALS, rounding=ROUND_HALF_UP))
                 },
             }
         except Exception as google_error:
             print(f'Google Distance Matrix no disponible, usando estimación local: {google_error}')
             # Fallback: straight-line distance + assumed average speed (30 km/h).
-            distance_km = _haversine_km(o_lat, o_lng, d_lat, d_lng)
-            avg_speed_kmh = 30.0
-            duration_min = (distance_km / avg_speed_kmh) * 60 if distance_km > 0 else 0
-            recommended_value = (km_value * distance_km + min_value * duration_min)
+            distance_km = Decimal(str(_haversine_km(o_lat, o_lng, d_lat, d_lng)))
+            avg_speed_kmh = Decimal('30.0')
+            duration_min = (distance_km / avg_speed_kmh) * Decimal('60') if distance_km > 0 else Decimal('0')
+            calculated_fare = (km_value * distance_km + min_value * duration_min)
+            recommended_value = _apply_minimum_fare(calculated_fare)
 
             response_data = {
-                'recommended_value': recommended_value,
+                'recommended_value': float(recommended_value),
                 'destination_addresses': destinations,
                 'origin_addresses': origins,
                 'distance': {
                     'text': f"{distance_km:.1f} km",
-                    'value': distance_km
+                    'value': float(distance_km.quantize(MONEY_DECIMALS, rounding=ROUND_HALF_UP))
                 },
                 'duration': {
-                    'text': f"{round(duration_min)} min",
-                    'value': duration_min
+                    'text': f"{int(duration_min.quantize(Decimal('1'), rounding=ROUND_HALF_UP))} min",
+                    'value': float(duration_min.quantize(MONEY_DECIMALS, rounding=ROUND_HALF_UP))
                 },
                 'estimated': True,
             }

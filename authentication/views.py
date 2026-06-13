@@ -99,6 +99,15 @@ def login(request):
             status=status.HTTP_401_UNAUTHORIZED
         )
 
+    if not getattr(user, 'is_active', True):
+        return Response(
+            {
+                "message": "Usuario inactivo",
+                "statusCode": status.HTTP_403_FORBIDDEN
+            },
+            status=status.HTTP_403_FORBIDDEN
+        )
+
     if bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
         refresh_token = getCustomTokenForUser(user)
         access_token = str(refresh_token.access_token)
